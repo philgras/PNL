@@ -1,0 +1,33 @@
+language:
+  - c
+
+compiler:
+  - gcc
+
+
+os:
+  - linux
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - cmake
+
+
+script:
+
+  - mkdir _builds
+  - cd _builds
+  - cmake ..
+  - make
+  - make test
+
+notifications:
+  email:
+    on_success: never
+    on_failure: always
+
+
+
