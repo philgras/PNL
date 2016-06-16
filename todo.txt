@@ -1,0 +1,4 @@
+- setsockopt auch bei connect
+- error handling 
+- nonblocking connect
+- accept errors

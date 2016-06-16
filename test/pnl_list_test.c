@@ -31,7 +31,6 @@ static inline void init_connection(struct connection* conn, int i){
 int find(pnl_list_t* l, int i){
     int rv = -1;
     PNL_LIST_FOR_EACH(l,iter){
-        printf("%d\n",PNL_LIST_ENTRY(iter,struct connection, list)->i);
         if(PNL_LIST_ENTRY(iter,struct connection, list)->i == i)
             rv = 0;
     }

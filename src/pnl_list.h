@@ -14,8 +14,8 @@ typedef struct pnl_list_s pnl_list_t;
              ((type*)((char*) (l) - (size_t)(&((type*)(0))->fieldname)))
 
 
-#define PNL_LIST_FOR_EACH(l,i)                                              \
-            for(pnl_list_t* (i) = (l)->next;                                \
+#define PNL_LIST_FOR_EACH(l,i)                                            \
+            for(pnl_list_t* (i) = (l)->next;                                		\
                 (i) != (l); (i) = (i)->next)
                 
                 
