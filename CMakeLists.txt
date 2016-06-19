@@ -16,8 +16,19 @@ enable_testing()
 add_library(pnl_base src/pnl.c)
 add_library(pnl_tcp src/pnl_tcp.c)
 add_library(pnl_loop src/pnl_loop.c)
+target_link_libraries(pnl_loop pnl_tcp pnl_base)
+
 
 add_executable(pnl_list_test test/pnl_list_test.c)
+
+
+add_executable(pnl_server_test test/pnl_server_test.c)
+target_link_libraries(pnl_server_test pnl_loop)
+
+
+add_executable(pnl_client_test test/pnl_client_test.c)
+target_link_libraries(pnl_client_test pnl_loop)
+
 #add_executable(pnl_tcp_listen_test test/pnl_tcp_listen_test.c src/pnl_tcp.c)
 #target_link_libraries(pnl_tcp_listen_test pnl_base)
 

@@ -13,7 +13,7 @@
 
 #define EVENT_BUFFER_SIZE 10
 
-typedef struct epoll_event event_t;
+typedef struct epoll_event pnl_event_t;
 
 static pnl_loop_t unix_loop;
 
@@ -38,7 +38,7 @@ void pnl_loop_init(pnl_loop_t* l){
 	l->epollfd = INVALID_FD;
 	pnl_list_init(&l->active_tcp);
 	pnl_list_init(&l->inactive_tcp);
-	l->system_time = 0;
+	l->system_time = pnl_get_system_time();
 	l->poll_timeout = PNL_DEFAULT_TIMEOUT;
 	l->running = 0;
 }
@@ -53,7 +53,7 @@ int pnl_loop_create_server(pnl_loop_t* l,
 
 
 	int rc;
-	event_t event;
+	pnl_event_t event;
 
 	pnl_tcpserver_init(server);
 	rc = pnl_tcp_listen(server,ip,port);
@@ -107,7 +107,7 @@ int pnl_loop_create_connection(pnl_loop_t* l,
 							   on_close_cb on_close,
 							   on_connect_cb on_connect){
 	int rc, epoll_rc;
-	event_t event;
+	pnl_event_t event;
 
 	pnl_tcpconn_init(conn);
 	rc = pnl_tcp_connect(conn,ip,port);
@@ -239,7 +239,7 @@ int pnl_loop_start(pnl_loop_t* l, on_start onstart){
 
 		while(l->running){
 
-			event_t events[EVENT_BUFFER_SIZE];
+			pnl_event_t events[EVENT_BUFFER_SIZE];
 
 			rc = epoll_wait(l->epollfd,events,EVENT_BUFFER_SIZE,(int) l->poll_timeout);
 
@@ -311,18 +311,19 @@ static void update_timers(pnl_loop_t* l){
 			deactivate(l,tcp_handle);
 
 		}else if(l->poll_timeout > l->system_time-t.last_action ){
-			l->poll_timeout = l->system_time-t.last_action;
+			l->poll_timeout = t.timeout - (l->system_time-t.last_action);
 		}
 	}
+
 }
 
 static int deactivate(pnl_loop_t* l, pnl_tcp_t* t){
 	int rc = 0;
-	event_t dummy;
+	pnl_event_t dummy;
 
 	t->inactive = 1;
-	pnl_list_remove(&(t->node));
-	pnl_list_insert(&(l->inactive_tcp),&(t->node));
+	pnl_list_remove(&t->node);
+	pnl_list_insert(&l->inactive_tcp,&t->node);
 
 	rc = epoll_ctl(l->epollfd,EPOLL_CTL_DEL,t->socket_fd,&dummy);
 
@@ -338,7 +339,7 @@ static void close_inactive(pnl_loop_t* l){
 	pnl_list_t* head;
 	pnl_tcp_t* tcp_handle;
 
-	while(pnl_list_is_empty(&l->inactive_tcp)){
+	while(!pnl_list_is_empty(&l->inactive_tcp)){
 
 		head = pnl_list_first(&l->inactive_tcp);
 		tcp_handle = PNL_LIST_ENTRY(head,pnl_tcp_t,node);
@@ -358,21 +359,25 @@ static void close_inactive(pnl_loop_t* l){
 }
 
 static void handle_io(pnl_loop_t* l , pnl_tcp_t* t, int ioevents){
-	if( ioevents & EPOLLERR){
+
+	if(ioevents & EPOLLHUP){
+			PNL_TCP_ERROR(t,PNL_EHANGUP,0);
+			deactivate(l,t);
+	}else if( ioevents & EPOLLERR){
 		PNL_TCP_ERROR(t,PNL_EEVENT,0);
 		deactivate(l,t);
-	}else if(ioevents & EPOLLHUP){
-		PNL_TCP_ERROR(t,PNL_EHANGUP,0);
-		deactivate(l,t);
-	}else{
+	}else {
 		t->io_cb(l,t,ioevents);
 	}
 }
 
 static void handle_server_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 
+	pnl_event_t event;
+	int rc;
 	pnl_tcpserver_t* server = (pnl_tcpserver_t*) t;
 	pnl_tcpconn_t conn, *new_conn;
+
 
 	if(ioevents & EPOLLIN){
 		while(pnl_tcp_accept(server,&conn) == PNL_OK){
@@ -391,8 +396,18 @@ static void handle_server_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 			new_conn->tcpbase.io_cb = handle_connection_io;
 			new_conn->tcpbase.close_cb = server->connection_close_cb;
 			new_conn->tcpbase.timer.last_action = l->system_time;
-			new_conn->tcpbase.timer.timeout = PNL_DEFAULT_TIMEOUT;
+			new_conn->tcpbase.timer.timeout = PNL_DEFAULT_TIMEOUT/2;
 			pnl_list_insert(&l->active_tcp,&new_conn->tcpbase.node);
+
+			event.data.ptr = new_conn;
+			event.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP;
+			rc = epoll_ctl(l->epollfd,EPOLL_CTL_ADD,new_conn->tcpbase.socket_fd,&event);
+			if(rc < 0){
+				PNL_TCP_ERROR(&server->tcpbase,PNL_EEVENTADD,errno);
+				pnl_tcp_close((pnl_tcp_t*)&conn);
+				pnl_free(new_conn);
+				break;
+			}
 
 			if(server->accept_cb(l,server,new_conn) != PNL_OK){
 				deactivate(l,(pnl_tcp_t*)new_conn);
@@ -424,9 +439,9 @@ static void handle_connection_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 	 */
 	if(ioevents & EPOLLOUT){
 
-		if(conn->connected && conn->is_writing){
+		if(conn->connected){
 
-			if(writing_routine(l,conn) != PNL_OK){
+			if(conn->is_writing && writing_routine(l,conn) != PNL_OK){
 					deactivate(l,(pnl_tcp_t*)conn);
 					return;
 			}

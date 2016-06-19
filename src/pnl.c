@@ -7,6 +7,10 @@
 
 #include "pnl.h"
 #include <time.h>
+#include <assert.h>
+
+#define NANO_TO_MILLI(nano) ((nano)/1000000)
+#define SEC_TO_MILLI(sec) ((sec)*1000)
 
 static const char* error_msg[] =
 {
@@ -37,5 +41,7 @@ const char* pnl_strrerrorcode(int ec){
 pnl_time_t pnl_get_system_time(){
 	struct timespec time;
 	int rc = clock_gettime(CLOCK_MONOTONIC,&time);
-	return rc != 0? rc : time.tv_nsec/NANO_TO_MILLI;
+	assert(rc == 0);
+
+	return  SEC_TO_MILLI(time.tv_sec) +   NANO_TO_MILLI(time.tv_nsec);
 }

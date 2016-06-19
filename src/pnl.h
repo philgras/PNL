@@ -46,7 +46,7 @@ typedef struct {
 	XX(EHANGUP, "A hang-up occured on the socket file descriptor"),													\
 	XX(EPEERCLO, "The opposite peer closed the connection"),																\
 	XX(EMALLOC, "Failed to allocate memory"),																					\
-	XX(EEVENT, "An error occurred during an event system call"),							        						\
+	XX(EEVENT, "An error occurred on the file descriptor"),							        						\
 	XX(ETIMEOUT, "A timeout occurred"),																							\
 	XX(EEVENTDEL, "Unable to delete the file descriptor from the internal epoll event loop"),				\
 	XX(EEVENTADD, "Unable to addthe file descriptor to the internal epoll event loop"),						\
@@ -77,8 +77,8 @@ const char* pnl_strrerrorcode(int ec);
 /*
  * TIME
  */
-#define NANO_TO_MILLI 10e6
-#define PNL_DEFAULT_TIMEOUT 1000
+
+#define PNL_DEFAULT_TIMEOUT 5000
 #define PNL_INFINITE_TIMEOUT 0
 
 typedef long pnl_time_t;

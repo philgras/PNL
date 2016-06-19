@@ -7,7 +7,7 @@
 
 #include <inttypes.h>
 
-typedef struct pnl_loop_s pnl_loop_t;
+
 
 typedef void (*on_start)(pnl_loop_t* l);
 

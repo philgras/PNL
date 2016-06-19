@@ -15,8 +15,8 @@ typedef struct pnl_list_s pnl_list_t;
 
 
 #define PNL_LIST_FOR_EACH(l,i)                                            \
-            for(pnl_list_t* (i) = (l)->next;                                		\
-                (i) != (l); (i) = (i)->next)
+            for(pnl_list_t* (i) = (l)->next, *safe_iter = (i)->next;   		\
+                (i) != (l); (i) = safe_iter, safe_iter = (i)->next)
                 
                 
 static inline void pnl_list_init(pnl_list_t* list){
@@ -31,7 +31,7 @@ static inline int pnl_list_is_empty(pnl_list_t* list){
 }
 
 static inline pnl_list_t* pnl_list_first(pnl_list_t* list){
-    return list->next;
+    return pnl_list_is_empty(list) ? NULL : list->next ;
 }
 
 static inline void pnl_list_insert(pnl_list_t* list, pnl_list_t* node){

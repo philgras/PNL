@@ -6,14 +6,13 @@
  */
 
 #include "pnl_tcp.h"
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
 #include <netdb.h>
 #include <fcntl.h>
-
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #define WHILE_EINTR(func, rc) 							\
 				do{ 														\
@@ -45,7 +44,7 @@ int pnl_tcp_connect(pnl_tcpconn_t* conn , const char* ip, const char* port){
 	pnl_fd_t sock;
 	struct addrinfo hints, *res;
 
-	assert(conn->tcpbase.socket_fd != INVALID_FD);
+	assert(conn->tcpbase.socket_fd == INVALID_FD);
 
 	memset(&hints,0,sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
@@ -127,8 +126,6 @@ int pnl_tcp_listen(pnl_tcpserver_t* server, const char* ip, const char* port){
 	pnl_fd_t sock;
 	struct addrinfo * res, hints;
 
-	assert(server->tcpbase.socket_fd != INVALID_FD);
-
 	memset(&hints,0,sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
@@ -205,10 +202,7 @@ int pnl_tcp_accept(pnl_tcpserver_t* server, pnl_tcpconn_t* conn){
 				rc = PNL_ERR;
 				break;
 			}else{
-				/*
-				 * TODO more accurate error handling
-				 * --> distinguish between connection and server errors
-				 */
+
 				PNL_TCP_ERROR(&server->tcpbase,PNL_EACCEPT,errno);
 				rc = PNL_ERR;
 				break;
