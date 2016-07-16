@@ -1,4 +1,6 @@
-- setsockopt auch bei connect
-- error handling 
-- nonblocking connect
-- accept errors
+- remove dependencies between the loop and the TCP implementation
+- improve the error handling
+- improve TCP server/connection creation 
+- introduce a nicer TCP abstraction layer
+- divide pnl.h into multiple header/source files 
+- build ADT interfaces

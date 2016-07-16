@@ -8,7 +8,7 @@
 #ifndef SRC_PNL_TCP_H_
 #define SRC_PNL_TCP_H_
 
-#include "pnl.h"
+#include "pnl_common.h" /*typedefs and callbacks*/
 #include "pnl_list.h"
 #include <unistd.h>
 
@@ -22,25 +22,28 @@
 					PNL_TCP_ERROR((base),p_ec,sys_ec);					\
 				}
 
+/*
+ * TYPES & CALLBACKS
+ */
+
 typedef struct pnl_tcpconn_s pnl_tcpconn_t;
 typedef struct pnl_tcp_s pnl_tcp_t;
 typedef struct pnl_loop_s pnl_loop_t;
 typedef struct pnl_tcpserver_s pnl_tcpserver_t;
 
-/*
- * CALLBACKS
- */
-typedef void (*on_close_cb)(pnl_loop_t*,pnl_tcp_t*);
 typedef void (*on_iointernal_cb)(pnl_loop_t* l, pnl_tcp_t*, int ioevents);
-typedef int (*on_ioevent_cb)(pnl_loop_t* l, pnl_tcpconn_t*);
+typedef void (*on_close_internal_cb) (pnl_loop_t* l, pnl_tcp_t*);
+typedef void (*on_close_cb)(pnl_loop_t*,pnl_tcp_t*);
+typedef int (*on_ioevent_cb)(pnl_loop_t* l, pnl_tcpconn_t*, pnl_buffer_t* buf);
 typedef int (*on_connect_cb)(pnl_loop_t* l, pnl_tcpconn_t*);
 typedef int (*on_accept_cb)(pnl_loop_t* l, pnl_tcpserver_t*, pnl_tcpconn_t*);
-
 
 /*
  * TCP
  */
 struct pnl_tcp_s{
+	void* data;
+
 	/*list interface*/
 	pnl_list_t node;
 
@@ -51,6 +54,7 @@ struct pnl_tcp_s{
 	on_close_cb close_cb;
 
 	on_iointernal_cb io_cb;
+	on_close_internal_cb internal_close_cb;
 
 	pnl_error_t error;
 
@@ -71,9 +75,6 @@ struct pnl_tcpserver_s{
     on_accept_cb accept_cb;
     on_close_cb connection_close_cb;
 
-    /*PUBLIC*/
-    void* data;
-
 };
 
 
@@ -89,17 +90,14 @@ struct pnl_tcpconn_s{
 	on_connect_cb connect_cb;
 
 	on_ioevent_cb read_cb;
-	pnl_buffer_t* rbuffer;
+	pnl_buffer_t rbuffer;
 
 	on_ioevent_cb write_cb;
-	pnl_buffer_t* wbuffer;
+	pnl_buffer_t wbuffer;
 
 	unsigned int connected:1;
 	unsigned int is_reading:1;
 	unsigned int is_writing:1;
-
-	/*PUBLIC*/
-	void* data;
 };
 
 int pnl_tcp_connect(pnl_tcpconn_t*, const char* ip, const char* port);
@@ -109,6 +107,21 @@ int pnl_tcp_accept(pnl_tcpserver_t*, pnl_tcpconn_t* conn);
 int pnl_tcp_close(pnl_tcp_t*t);
 int pnl_tcp_read(pnl_tcpconn_t*);
 int pnl_tcp_write(pnl_tcpconn_t*);
+
+static inline
+const pnl_error_t* pnl_tcp_get_error(const pnl_tcp_t*t){
+	return &t->error;
+}
+
+static inline
+void*  pnl_tcp_get_data(pnl_tcp_t*t){
+	return t->data;
+}
+
+static inline
+void pnl_tcp_set_data(pnl_tcp_t*t, void* data){
+	t->data = data;
+}
 
 static inline
 void pnl_tcp_init(pnl_tcp_t* t){
@@ -121,6 +134,8 @@ void pnl_tcp_init(pnl_tcp_t* t){
 	t->io_cb = NULL;
 	t->timer.last_action = 0;
 	t->timer.timeout = 0;
+	t->internal_close_cb = NULL;
+	t->data = NULL;
 	pnl_list_init(&(t->node));
 }
 
@@ -128,14 +143,13 @@ static inline
 void pnl_tcpconn_init(pnl_tcpconn_t* c){
 	pnl_tcp_init(&c->tcpbase);
 	c->connected = 0;
-	c->data = NULL;
 
 	c->write_cb = NULL;
 	c->read_cb = NULL;
 	c->connect_cb = NULL;
 
-	c->rbuffer = NULL;
-	c->wbuffer = NULL;
+	pnl_buffer_init(&c->rbuffer);
+	pnl_buffer_init(&c->wbuffer);
 	c->is_reading = 0;
 	c->is_writing =0;
 }
@@ -143,7 +157,6 @@ void pnl_tcpconn_init(pnl_tcpconn_t* c){
 static inline
 void pnl_tcpserver_init(pnl_tcpserver_t* s){
 	pnl_tcp_init(&s->tcpbase);
-	s->data = NULL;
 	s->connection_close_cb = NULL;
 	s->accept_cb = NULL;
 }

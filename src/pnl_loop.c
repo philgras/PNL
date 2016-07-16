@@ -26,6 +26,7 @@ static void handle_server_io(pnl_loop_t*, pnl_tcp_t*, int ioevents);
 static void handle_connection_io(pnl_loop_t*, pnl_tcp_t*, int ioevents);
 static int reading_routine(pnl_loop_t*,pnl_tcpconn_t*);
 static int writing_routine(pnl_loop_t*,pnl_tcpconn_t*) ;
+static void close_connection_buffers(pnl_loop_t* l, pnl_tcp_t*);
 
 
 
@@ -124,6 +125,7 @@ int pnl_loop_create_connection(pnl_loop_t* l,
 			conn->tcpbase.io_cb = handle_connection_io;
 			conn->connect_cb = on_connect;
 			conn->tcpbase.close_cb = on_close;
+			conn->tcpbase.internal_close_cb = close_connection_buffers;
 			conn->tcpbase.timer.last_action= l->system_time;
 			conn->tcpbase.timer.timeout = PNL_DEFAULT_TIMEOUT;
 
@@ -156,15 +158,27 @@ int pnl_loop_remove_connection(pnl_loop_t* l, pnl_tcpconn_t* conn){
 }
 
 
-int pnl_loop_start_reading(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_read, pnl_buffer_t* buf){
+int pnl_loop_start_reading(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_read, size_t buffer_size){
 	int rc;
 
-	if(!conn->tcpbase.inactive){
+	if(conn->is_reading){
+		PNL_TCP_ERROR(&conn->tcpbase, PNL_EALREADY,0);
+		rc = PNL_ERR;
+	}else if(!conn->tcpbase.inactive){
 
-			conn->rbuffer = buf;
-			conn->read_cb = on_read;
-			conn->is_reading = 1;
-			rc = reading_routine(l,conn);
+			rc = pnl_buffer_alloc(&conn->rbuffer, buffer_size);
+			if(rc == PNL_OK){
+				conn->is_reading = 1;
+				conn->read_cb = on_read;
+				rc = reading_routine(l,conn);
+
+				if(rc == PNL_ERR){
+					pnl_loop_stop_reading(conn);
+				}
+
+			}else{
+				PNL_TCP_ERROR(&conn->tcpbase, PNL_EMALLOC,0);
+			}
 
 	}else{
 		PNL_TCP_ERROR(&conn->tcpbase, PNL_EINACTIVE,0);
@@ -181,44 +195,48 @@ int pnl_loop_start_reading(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_
 
 void pnl_loop_stop_reading( pnl_tcpconn_t* conn){
 
-	if(conn->is_reading){
-		conn->is_reading = 0;
-		conn->read_cb = NULL;
-		conn->rbuffer = NULL;
-	}
+	pnl_buffer_free(&conn->rbuffer);
+	conn->is_reading = 0;
 }
 
-int pnl_loop_start_writing(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_write, pnl_buffer_t* buf){
+int pnl_loop_start_writing(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_write, size_t buffer_size){
 	int rc;
 
-		if(!conn->tcpbase.inactive){
+	if(conn->is_writing){
+
+			PNL_TCP_ERROR(&conn->tcpbase, PNL_EALREADY,0);
+			rc = PNL_ERR;
+
+	}else if(!conn->tcpbase.inactive){
+
+		rc = pnl_buffer_alloc(&conn->wbuffer, buffer_size);
 
 
-				conn->write_cb = on_write;
-				conn->wbuffer = buf;
-				conn->is_writing = 1;
-				rc = writing_routine(l,conn);
+		if(rc == PNL_OK){
+			conn->write_cb = on_write;
+			conn->is_writing =1;
+			rc = writing_routine(l,conn);
 
+			if(rc == PNL_ERR){
+				pnl_loop_stop_writing(conn);
+			}
 
 		}else{
-			PNL_TCP_ERROR(&conn->tcpbase, PNL_EINACTIVE,0);
-			rc = PNL_ERR;
+			PNL_TCP_ERROR(&conn->tcpbase, PNL_EMALLOC,0);
 		}
 
 
-		if(rc != PNL_OK){
-			deactivate(l,(pnl_tcp_t*)conn);
-		}
+	}else{
+		PNL_TCP_ERROR(&conn->tcpbase, PNL_EINACTIVE,0);
+		rc = PNL_ERR;
+	}
 
-		return rc;
+	return rc;
 }
 
 void  pnl_loop_stop_writing(pnl_tcpconn_t* conn){
-	if(conn->is_writing){
-		conn->is_writing = 0;
-		conn->write_cb = NULL;
-		conn->wbuffer = NULL;
-	}
+	pnl_buffer_free(&conn->wbuffer);
+	conn->is_writing= 0;
 }
 
 
@@ -318,19 +336,26 @@ static void update_timers(pnl_loop_t* l){
 }
 
 static int deactivate(pnl_loop_t* l, pnl_tcp_t* t){
-	int rc = 0;
+	int rc = PNL_OK;
 	pnl_event_t dummy;
 
-	t->inactive = 1;
-	pnl_list_remove(&t->node);
-	pnl_list_insert(&l->inactive_tcp,&t->node);
-
-	rc = epoll_ctl(l->epollfd,EPOLL_CTL_DEL,t->socket_fd,&dummy);
-
-	if(rc == -1){
-		PNL_TCP_CLEANUP_ERROR(t,PNL_EEVENTDEL,errno);
+	if(t->inactive){
+		PNL_TCP_CLEANUP_ERROR(t,PNL_EALREADY,0);
 		rc = PNL_ERR;
+	}else{
+
+		t->inactive = 1;
+		pnl_list_remove(&t->node);
+		pnl_list_insert(&l->inactive_tcp,&t->node);
+
+		rc = epoll_ctl(l->epollfd,EPOLL_CTL_DEL,t->socket_fd,&dummy);
+
+		if(rc == -1){
+			PNL_TCP_CLEANUP_ERROR(t,PNL_EEVENTDEL,errno);
+			rc = PNL_ERR;
+		}
 	}
+
 	return rc;
 }
 
@@ -345,12 +370,16 @@ static void close_inactive(pnl_loop_t* l){
 		tcp_handle = PNL_LIST_ENTRY(head,pnl_tcp_t,node);
 
 		pnl_tcp_close(tcp_handle);
+		pnl_list_remove(head);
+
+		/*close buffers*/
+		if(tcp_handle->internal_close_cb != NULL){
+			tcp_handle->internal_close_cb(l,tcp_handle);
+		}
 
 		if(tcp_handle->close_cb != NULL){
 			tcp_handle->close_cb(l,tcp_handle);
 		}
-
-		pnl_list_remove(head);
 
 		if(tcp_handle->allocated){
 			pnl_free(tcp_handle);
@@ -395,18 +424,22 @@ static void handle_server_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 			new_conn->tcpbase.socket_fd = conn.tcpbase.socket_fd;
 			new_conn->tcpbase.io_cb = handle_connection_io;
 			new_conn->tcpbase.close_cb = server->connection_close_cb;
+			new_conn->tcpbase.internal_close_cb = close_connection_buffers;
 			new_conn->tcpbase.timer.last_action = l->system_time;
-			new_conn->tcpbase.timer.timeout = PNL_DEFAULT_TIMEOUT/2;
+			new_conn->tcpbase.timer.timeout = PNL_DEFAULT_TIMEOUT;
 			pnl_list_insert(&l->active_tcp,&new_conn->tcpbase.node);
 
 			event.data.ptr = new_conn;
 			event.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP;
 			rc = epoll_ctl(l->epollfd,EPOLL_CTL_ADD,new_conn->tcpbase.socket_fd,&event);
+
 			if(rc < 0){
+
 				PNL_TCP_ERROR(&server->tcpbase,PNL_EEVENTADD,errno);
 				pnl_tcp_close((pnl_tcp_t*)&conn);
 				pnl_free(new_conn);
 				break;
+
 			}
 
 			if(server->accept_cb(l,server,new_conn) != PNL_OK){
@@ -423,6 +456,7 @@ static void handle_server_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 
 static void handle_connection_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 
+	int rc;
 	pnl_tcpconn_t* conn = (pnl_tcpconn_t*)t;
 
     /*
@@ -430,8 +464,7 @@ static void handle_connection_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
      */
 	if(ioevents & EPOLLRDHUP){
 		PNL_TCP_ERROR(t,PNL_EPEERCLO,0);
-		deactivate(l,(pnl_tcp_t*)t);
-		return;
+		goto deactivate;
 	}
 
 	/*
@@ -441,21 +474,32 @@ static void handle_connection_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 
 		if(conn->connected){
 
-			if(conn->is_writing && writing_routine(l,conn) != PNL_OK){
-					deactivate(l,(pnl_tcp_t*)conn);
-					return;
+			if(conn->is_writing ){
+
+				rc = writing_routine(l,conn);
+
+				if(rc!= PNL_OK || conn->tcpbase.inactive){
+					goto deactivate;
+				}
+
 			}
 
 		}else{
 
-			if(pnl_tcp_connect_succeeded(conn) == PNL_OK
-					&& conn->connect_cb(l,conn) == PNL_OK){
-				conn->connected = 1;
-			}else{
-				deactivate(l,(pnl_tcp_t*)conn);
-				return;
-			}
+			if(pnl_tcp_connect_succeeded(conn) == PNL_OK){
 
+				rc = conn->connect_cb(l,conn);
+
+				if( rc == PNL_OK || !conn->tcpbase.inactive){
+
+					conn->connected = 1;
+
+				}else{
+
+					goto deactivate;
+
+				}
+			}
 		}
 	}
 
@@ -463,14 +507,23 @@ static void handle_connection_io(pnl_loop_t* l, pnl_tcp_t* t, int ioevents){
 	 * handle all read events
 	 */
 	if(ioevents & EPOLLIN){
+
 		if(conn->connected && conn->is_reading){
-			if(reading_routine(l,conn) != PNL_OK){
-				deactivate(l,(pnl_tcp_t*)conn);
+
+			rc = reading_routine(l,conn);
+
+			if(rc != PNL_OK || conn->tcpbase.inactive){
+				goto deactivate;
 			}
 		}
 	}
 
+	goto end;
 
+	deactivate:
+		deactivate(l,(pnl_tcp_t*)conn);
+
+	end:	return;
 }
 
 static int reading_routine(pnl_loop_t* l, pnl_tcpconn_t* conn){
@@ -478,10 +531,12 @@ static int reading_routine(pnl_loop_t* l, pnl_tcpconn_t* conn){
 	int rc;
 
 	do{
+		pnl_buffer_clear(&conn->rbuffer);
 		rc = pnl_tcp_read(conn);
 
 		if(rc == PNL_OK){
-			rc = conn->read_cb(l,conn);
+			rc = conn->read_cb(l,conn,&conn->rbuffer);
+
 		}else if(rc == PNL_ERR && conn->tcpbase.error.pnl_ec == PNL_EWAIT){
 			rc = PNL_OK;
 			break;
@@ -489,7 +544,7 @@ static int reading_routine(pnl_loop_t* l, pnl_tcpconn_t* conn){
 			rc = PNL_ERR;
 		}
 
-	}while(rc == PNL_OK);
+	}while(rc == PNL_OK && conn->is_reading);
 
 	return rc;
 }
@@ -502,7 +557,9 @@ static int writing_routine(pnl_loop_t* l,pnl_tcpconn_t* conn) {
 			rc = pnl_tcp_write(conn);
 
 			if(rc == PNL_OK){
-				rc = conn->write_cb(l,conn);
+				pnl_buffer_clear(&conn->wbuffer);
+				rc = conn->write_cb(l,conn,&conn->wbuffer);
+				pnl_buffer_reset_position(&conn->wbuffer);
 			}else if(rc == PNL_ERR && conn->tcpbase.error.pnl_ec == PNL_EWAIT){
 				rc = PNL_OK;
 				break;
@@ -510,8 +567,19 @@ static int writing_routine(pnl_loop_t* l,pnl_tcpconn_t* conn) {
 				rc = PNL_ERR;
 			}
 
-		}while(rc == PNL_OK);
+		}while(rc == PNL_OK && conn->is_writing);
 
 		return rc;
 }
 
+static void close_connection_buffers(pnl_loop_t* l, pnl_tcp_t* t){
+
+	pnl_tcpconn_t * conn = (pnl_tcpconn_t *)t;
+	if(conn->is_reading){
+		pnl_loop_stop_reading(conn);
+	}
+	if(conn->is_writing){
+		pnl_loop_stop_writing(conn);
+	}
+
+}

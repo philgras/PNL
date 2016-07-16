@@ -13,7 +13,7 @@ include_directories(${PROJECT_SOURCE_DIR}/test)
 
 set(CMAKE_BINARY_DIR "bin")
 enable_testing()
-add_library(pnl_base src/pnl.c)
+add_library(pnl_base src/pnl_error.c src/pnl_time.c)
 add_library(pnl_tcp src/pnl_tcp.c)
 add_library(pnl_loop src/pnl_loop.c)
 target_link_libraries(pnl_loop pnl_tcp pnl_base)

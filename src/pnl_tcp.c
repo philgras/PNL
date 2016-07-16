@@ -235,16 +235,17 @@ int pnl_tcp_close(pnl_tcp_t*t){
 int pnl_tcp_read(pnl_tcpconn_t* conn){
 
 	int rc;
-
-	conn->rbuffer->used = 0;
+	char* position = pnl_buffer_used_end(&conn->rbuffer);
 
 	WHILE_EINTR(recv(conn->tcpbase.socket_fd,
-									   conn->rbuffer->data,
-									   conn->rbuffer->length,
-									   0),rc);
+								   position,
+								   pnl_buffer_get_space(&conn->rbuffer),
+								   0),rc);
 
 	if(rc > 0){
-		conn->rbuffer->used += rc;
+		pnl_buffer_add_used(&conn->rbuffer,rc);
+		pnl_buffer_set_position(&conn->rbuffer, position+rc);
+
 		rc = PNL_OK;
 	}else if(rc == 0){
 		rc = PNL_ERR;
@@ -258,25 +259,24 @@ int pnl_tcp_read(pnl_tcpconn_t* conn){
 		}
 	}
 
-	conn->rbuffer->last_position = conn->rbuffer->data;
 	return rc;
 
 }
 
 int pnl_tcp_write(pnl_tcpconn_t* conn){
 
-	int rc;
-
-	while(conn->wbuffer->used > 0){
+	int rc = PNL_OK;
+	char* position  = pnl_buffer_get_position(&conn->wbuffer);
+	char* end_of_used = pnl_buffer_used_end(&conn->wbuffer);
+	while(end_of_used - position > 0){
 
 		WHILE_EINTR(send(conn->tcpbase.socket_fd,
-								   conn->wbuffer->last_position,
-								   conn->wbuffer->used,
+									   position,
+									   end_of_used - position,
 								   0),rc);
 
 		if(rc > 0){
-			conn->wbuffer->last_position += rc;
-			conn->wbuffer->used -= rc;
+			position += rc;
 			rc = PNL_OK;
 			continue;
 
@@ -291,9 +291,8 @@ int pnl_tcp_write(pnl_tcpconn_t* conn){
 		}
 	}
 
-	if(conn->wbuffer->used == 0){
-		conn->wbuffer->last_position = conn->wbuffer->data;
-	}
+	pnl_buffer_set_position(&conn->wbuffer,position);
+
 	return rc;
 }
 

@@ -1,7 +1,7 @@
 #ifndef PNL_LOOP_H
 #define PNL_LOOP_H
 
-#include "pnl.h"
+#include "pnl_common.h"
 #include "pnl_list.h"
 #include "pnl_tcp.h"
 
@@ -22,6 +22,8 @@ struct pnl_loop_s{
     
     pnl_time_t system_time;
     pnl_time_t poll_timeout;
+
+    void* data;
 
     volatile unsigned int running:1;
 
@@ -53,15 +55,24 @@ int pnl_loop_create_connection(pnl_loop_t* l,
 
 int pnl_loop_remove_connection(pnl_loop_t* l, pnl_tcpconn_t* conn);
 
-int pnl_loop_start_reading(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_read, pnl_buffer_t* buf);
+int pnl_loop_start_reading(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_read,size_t buffer_size);
 void  pnl_loop_stop_reading(pnl_tcpconn_t* conn);
-int pnl_loop_start_writing(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_write, pnl_buffer_t* buf);
+int pnl_loop_start_writing(pnl_loop_t* l, pnl_tcpconn_t* conn, on_ioevent_cb on_write, size_t buffer_size);
 void pnl_loop_stop_writing(pnl_tcpconn_t* conn);
 
 int pnl_loop_start(pnl_loop_t*, on_start onstart);
-
 void pnl_loop_stop(pnl_loop_t*);
 
+
+static inline
+void* pnl_loop_get_data(pnl_loop_t* l){
+	return l->data;
+}
+
+static inline
+void pnl_loop_set_data(pnl_loop_t* l, void* data){
+	l->data = data;
+}
 
 
 
