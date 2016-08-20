@@ -35,7 +35,7 @@ void pnl_buffer_init(pnl_buffer_t* buf){
 
 static inline
 int pnl_buffer_is_allocated(const pnl_buffer_t* buf){
-	return buf->data != NULL;
+	return buf->data != NULL ? PNL_OK : PNL_ERR;
 }
 
 static inline
@@ -64,10 +64,11 @@ char* pnl_buffer_get_position(pnl_buffer_t* buf){
 }
 
 static inline
-void pnl_buffer_set_position(pnl_buffer_t* buf, char* position){
+char* pnl_buffer_set_position(pnl_buffer_t* buf, char* position){
 	if(position >= buf->data && position <= buf->data + buf->used){
 		buf->position  = position;
 	}
+	return buf->position;
 }
 
 

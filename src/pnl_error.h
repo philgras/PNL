@@ -66,4 +66,24 @@ enum pnl_error{
 const char* pnl_strerror(int ec);
 const char* pnl_strrerrorcode(int ec);
 
+static inline
+void pnl_error_set(pnl_error_t* error, int pnl_error, int system_error){
+	error->pnl_ec = pnl_error;
+	error->system_ec = system_error;
+}
+
+static inline
+void pnl_error_reset(pnl_error_t* err){
+	err->pnl_ec = PNL_NOERR;
+	err->system_ec =0;
+}
+
+static inline
+void pnl_error_set_cleanup(pnl_error_t* error, int pnl_error, int system_error){
+	if(error->pnl_ec == PNL_NOERR){
+		error->pnl_ec = pnl_error;
+		error->system_ec = system_error;
+	}
+}
+
 #endif /* SRC_PNL_ERROR_H_ */

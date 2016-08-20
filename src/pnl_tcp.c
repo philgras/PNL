@@ -4,22 +4,24 @@
  *  Created on: 27.05.2016
  *      Author: philgras
  */
-
+#include "pnl_sys_nio.h"
 #include "pnl_tcp.h"
+
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
-#include <netdb.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <sys/types.h>
+
+
 
 #define WHILE_EINTR(func, rc) 							\
 				do{ 														\
 					rc = func; 											\
 				}while( rc == -1&& errno == EINTR)
 
-static int enable_nonblocking(pnl_tcp_t* tcp_handle){
+
+
+/*
+    static int enable_nonblocking(pnl_tcp_t* tcp_handle){
 	int flags;
 
 	flags = fcntl(tcp_handle->socket_fd, F_GETFL, 0);
@@ -36,65 +38,70 @@ static int enable_nonblocking(pnl_tcp_t* tcp_handle){
 
 	return PNL_OK;
 }
+*/
 
-int pnl_tcp_connect(pnl_tcpconn_t* conn , const char* ip, const char* port){
+
+
+int pnl_tcp_connect(pnl_fd_t*conn_fd, const char* ip, const char* port, pnl_error_t* error){
 
 
 	int rc;
 	pnl_fd_t sock;
 	struct addrinfo hints, *res;
 
-	assert(conn->tcpbase.socket_fd == INVALID_FD);
+	assert(*conn_fd == PNL_INVALID_FD);
 
 	memset(&hints,0,sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	rc = getaddrinfo(ip,port,&hints,&res);
+	rc = pnl_getaddrinfo(ip,port,&hints,&res);
 	if(rc != 0){
+
 		/*
 		 *  The system_ec is set to the getaddrinfo error code which means
 		 * one should use gai_strerror call to get the error string.
 		 */
-		PNL_TCP_ERROR(&conn->tcpbase, PNL_EADDRINFO , rc);
+
+		pnl_error_set(error, PNL_EADDRINFO , rc);
 		return PNL_ERR;
 	}
 
 	for(struct addrinfo* iter = res; iter != NULL; iter = iter->ai_next){
 
 		/*acquire socket*/
-		sock = socket(iter->ai_family,iter->ai_socktype | SOCK_NONBLOCK, iter->ai_protocol);
-		if (sock == INVALID_FD) {
-			PNL_TCP_ERROR(&conn->tcpbase, PNL_ESOCKET , errno);
+		sock = pnl_socket(iter->ai_family,iter->ai_socktype | SOCK_NONBLOCK, iter->ai_protocol);
+		if (sock == PNL_INVALID_FD) {
+			pnl_error_set(error, PNL_ESOCKET , errno);
 			continue;
 		}
 
 		/*connect*/
-	    WHILE_EINTR(connect(sock, iter->ai_addr, iter->ai_addrlen),rc);
+	    WHILE_EINTR(pnl_connect(sock, iter->ai_addr, iter->ai_addrlen),rc);
 		if(rc == -1){
 			if(errno == EINPROGRESS){
-				PNL_TCP_ERROR(&conn->tcpbase, PNL_EWAIT, 0);
+				pnl_error_set(error, PNL_EWAIT, 0);
 			}else{
-				PNL_TCP_ERROR(&conn->tcpbase, PNL_ECONNECT, errno);
-				close(sock);
-				sock = INVALID_FD;
+				pnl_error_set(error, PNL_ECONNECT, errno);
+				pnl_close(sock);
+				sock = PNL_INVALID_FD;
 				continue;
 			}
 		}else{
 			/*if another iteration step has set the error codes*/
-			PNL_TCP_ERROR(&conn->tcpbase, 0, 0);
+			pnl_error_set(error, 0, 0);
 		}
 
 		break;
 	}
 
-	freeaddrinfo(res);
+	pnl_freeaddrinfo(res);
 
-	if(sock != INVALID_FD ){
-		conn->tcpbase.socket_fd = sock;
+	if(sock != PNL_INVALID_FD ){
+		*conn_fd = sock;
 
-		if(conn->tcpbase.error.pnl_ec == 0) rc = PNL_OK;
+		if(error->pnl_ec == 0) rc = PNL_OK;
 		else rc = PNL_ERR;
 
 	}else{
@@ -104,22 +111,24 @@ int pnl_tcp_connect(pnl_tcpconn_t* conn , const char* ip, const char* port){
 	return rc;
 }
 
-int pnl_tcp_connect_succeeded(pnl_tcpconn_t* conn ){
+
+
+int pnl_tcp_connect_succeeded(pnl_fd_t* conn_fd, pnl_error_t* error){
 
 	int connected;
 	int rc = PNL_OK;
 	socklen_t size= sizeof(connected);
-	if(getsockopt(conn->tcpbase.socket_fd,SOL_SOCKET,SO_ERROR,&connected,&size) < 0){
-		PNL_TCP_ERROR(&conn->tcpbase,PNL_EGETSOCKOPT,errno);
+	if(pnl_getsockopt(*conn_fd,SOL_SOCKET,SO_ERROR,&connected,&size) < 0){
+		pnl_error_set(error,PNL_EGETSOCKOPT,errno);
 		rc = PNL_ERR;
 	}else if(connected != 0){
-		PNL_TCP_ERROR(&conn->tcpbase,PNL_ECONNECT,connected);
+		pnl_error_set(error,PNL_ECONNECT,connected);
 		rc = PNL_ERR;
 	}
 	return rc;
 }
 
-int pnl_tcp_listen(pnl_tcpserver_t* server, const char* ip, const char* port){
+int pnl_tcp_listen(pnl_fd_t* server_fd, const char* ip, const char* port, pnl_error_t* error){
 
 	int rc;
 	int yes = 1;
@@ -132,51 +141,51 @@ int pnl_tcp_listen(pnl_tcpserver_t* server, const char* ip, const char* port){
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 
-	rc = getaddrinfo(ip,port,&hints,&res);
+	rc = pnl_getaddrinfo(ip,port,&hints,&res);
 	if(rc != 0){
 		/*
 		 *  The system_ec is set to the getaddrinfo error code which means
 		 * one should use gai_strerror call to get the error string.
 		 */
-		PNL_TCP_ERROR(&server->tcpbase, PNL_EADDRINFO , rc);
+		pnl_error_set(error, PNL_EADDRINFO , rc);
 		return PNL_ERR;
 	}
 
 	for(struct addrinfo* iter = res; iter != NULL; iter = iter->ai_next){
 
-		sock = socket(iter->ai_family,iter->ai_socktype | SOCK_NONBLOCK, iter->ai_protocol);
-		if (sock == INVALID_FD) {
-			PNL_TCP_ERROR(&server->tcpbase,PNL_ESOCKET,errno);
+		sock = pnl_socket(iter->ai_family,iter->ai_socktype | SOCK_NONBLOCK, iter->ai_protocol);
+		if (sock == PNL_INVALID_FD) {
+			pnl_error_set(error,PNL_ESOCKET,errno);
 			continue;
 		}
 
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))	== -1) {
-			PNL_TCP_ERROR(&server->tcpbase,PNL_ESETSOCKOPT,errno);
-			close(sock);
-			sock = INVALID_FD;
+		if (pnl_setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))	== -1) {
+			pnl_error_set(error,PNL_ESETSOCKOPT,errno);
+			pnl_close(sock);
+			sock = PNL_INVALID_FD;
 			break;
 		}
 
-		if (bind(sock, iter->ai_addr, iter->ai_addrlen) == -1) {
-			PNL_TCP_ERROR(&server->tcpbase,PNL_EBIND,errno);
-			close(sock);
-			sock = INVALID_FD;
+		if (pnl_bind(sock, iter->ai_addr, iter->ai_addrlen) == -1) {
+			pnl_error_set(error,PNL_EBIND,errno);
+			pnl_close(sock);
+			sock = PNL_INVALID_FD;
 			continue;
 		}
 
-		PNL_TCP_ERROR(&server->tcpbase,0,0);
+		pnl_error_set(error,0,0);
 		break;
 	}
 
-	freeaddrinfo(res);
+	pnl_freeaddrinfo(res);
 
-	if(sock != INVALID_FD ){
-		if(listen(sock , SOMAXCONN) != 0){
-			PNL_TCP_ERROR(&server->tcpbase,PNL_ELISTEN,errno);
-			close(sock);
+	if(sock != PNL_INVALID_FD ){
+		if(pnl_listen(sock , SOMAXCONN) != 0){
+			pnl_error_set(error,PNL_ELISTEN,errno);
+			pnl_close(sock);
 			rc = PNL_ERR;
 		}else{
-			server->tcpbase.socket_fd = sock;
+			*server_fd = sock;
 			rc = PNL_OK;
 		}
 	}else{
@@ -186,29 +195,29 @@ int pnl_tcp_listen(pnl_tcpserver_t* server, const char* ip, const char* port){
 	return rc;
 }
 
-int pnl_tcp_accept(pnl_tcpserver_t* server, pnl_tcpconn_t* conn){
+int pnl_tcp_accept(pnl_fd_t* server_fd, pnl_fd_t *conn_fd, pnl_error_t* error){
 
 	pnl_fd_t socket;
 	int rc;
 
 	do{
-		socket = accept4(server->tcpbase.socket_fd,NULL,NULL,SOCK_NONBLOCK);
+		socket = pnl_accept4(*server_fd,NULL,NULL,SOCK_NONBLOCK);
 
-		if(socket == INVALID_FD){
+		if(socket == PNL_INVALID_FD){
 			if(errno == ECONNABORTED || errno == EINTR){
 				continue;
 			}else if (errno == EWOULDBLOCK || errno == EAGAIN){
-				PNL_TCP_ERROR(&server->tcpbase,PNL_EWAIT,errno);
+				pnl_error_set(error,PNL_EWAIT,errno);
 				rc = PNL_ERR;
 				break;
 			}else{
 
-				PNL_TCP_ERROR(&server->tcpbase,PNL_EACCEPT,errno);
+				pnl_error_set(error,PNL_EACCEPT,errno);
 				rc = PNL_ERR;
 				break;
 			}
 		}else{
-			conn->tcpbase.socket_fd = socket;
+			*conn_fd = socket;
 			rc = PNL_OK;
 			break;
 		}
@@ -217,13 +226,13 @@ int pnl_tcp_accept(pnl_tcpserver_t* server, pnl_tcpconn_t* conn){
 	return rc;
 }
 
-int pnl_tcp_close(pnl_tcp_t*t){
+int pnl_tcp_close(pnl_fd_t* fd, pnl_error_t* error){
 	/* this invalidates the socket fd in any case*/
-	int rc = close(t->socket_fd);
-	t->socket_fd= INVALID_FD;
+	int rc = pnl_close(*fd);
+	*fd= PNL_INVALID_FD;
 
 	if(rc < 0){
-		PNL_TCP_CLEANUP_ERROR(t,PNL_ECLOSE,errno);
+		pnl_error_set_cleanup(error,PNL_ECLOSE,errno);
 		rc = PNL_ERR;
 	}else{
 		rc = PNL_OK;
@@ -232,30 +241,30 @@ int pnl_tcp_close(pnl_tcp_t*t){
 	return rc;
 }
 
-int pnl_tcp_read(pnl_tcpconn_t* conn){
+int pnl_tcp_read(pnl_fd_t* conn_fd, pnl_buffer_t* buffer, pnl_error_t* error){
 
 	int rc;
-	char* position = pnl_buffer_used_end(&conn->rbuffer);
+	char* position = pnl_buffer_used_end(buffer);
 
-	WHILE_EINTR(recv(conn->tcpbase.socket_fd,
+	WHILE_EINTR(pnl_recv(*conn_fd,
 								   position,
-								   pnl_buffer_get_space(&conn->rbuffer),
+								   pnl_buffer_get_space(buffer),
 								   0),rc);
 
 	if(rc > 0){
-		pnl_buffer_add_used(&conn->rbuffer,rc);
-		pnl_buffer_set_position(&conn->rbuffer, position+rc);
+		pnl_buffer_add_used(buffer,rc);
+		pnl_buffer_set_position(buffer, position+rc);
 
 		rc = PNL_OK;
 	}else if(rc == 0){
 		rc = PNL_ERR;
-		PNL_TCP_ERROR(&conn->tcpbase,PNL_EPEERCLO,0);
+		pnl_error_set(error,PNL_EPEERCLO,0);
 	}else{
 		rc = PNL_ERR;
 		if(errno == EAGAIN || errno == EWOULDBLOCK){
-			PNL_TCP_ERROR(&conn->tcpbase,PNL_EWAIT,errno);
+			pnl_error_set(error,PNL_EWAIT,errno);
 		}else{
-			PNL_TCP_ERROR(&conn->tcpbase,PNL_ERECV,errno);
+			pnl_error_set(error,PNL_ERECV,errno);
 		}
 	}
 
@@ -263,14 +272,14 @@ int pnl_tcp_read(pnl_tcpconn_t* conn){
 
 }
 
-int pnl_tcp_write(pnl_tcpconn_t* conn){
+int pnl_tcp_write(pnl_fd_t* conn_fd, pnl_buffer_t* buffer, pnl_error_t* error){
 
 	int rc = PNL_OK;
-	char* position  = pnl_buffer_get_position(&conn->wbuffer);
-	char* end_of_used = pnl_buffer_used_end(&conn->wbuffer);
+	char* position  = pnl_buffer_get_position(buffer);
+	char* end_of_used = pnl_buffer_used_end(buffer);
 	while(end_of_used - position > 0){
 
-		WHILE_EINTR(send(conn->tcpbase.socket_fd,
+		WHILE_EINTR(pnl_send(*conn_fd,
 									   position,
 									   end_of_used - position,
 								   0),rc);
@@ -283,15 +292,15 @@ int pnl_tcp_write(pnl_tcpconn_t* conn){
 		}else{
 			rc = PNL_ERR;
 			if(errno == EAGAIN || errno == EWOULDBLOCK){
-				PNL_TCP_ERROR(&conn->tcpbase,PNL_EWAIT,errno);
+				pnl_error_set(error,PNL_EWAIT,errno);
 			}else{
-				PNL_TCP_ERROR(&conn->tcpbase,PNL_ERECV,errno);
+				pnl_error_set(error,PNL_ERECV,errno);
 			}
 			break;
 		}
 	}
 
-	pnl_buffer_set_position(&conn->wbuffer,position);
+	pnl_buffer_set_position(buffer,position);
 
 	return rc;
 }
