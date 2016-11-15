@@ -20,7 +20,7 @@ script:
 
   - mkdir _builds
   - cd _builds
-  - cmake ..
+  - cmake -DCMAKE_BUILD_TYPE=Release ..
   - make
   - make test
 

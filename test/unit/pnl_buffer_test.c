@@ -1,32 +1,40 @@
-/*
- * pnl_buffer_test.c
- *
- *  Created on: 19.06.2016
- *      Author: philgras
- */
-
 #include "pnl_buffer.h"
 
+#include <stdarg.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <setjmp.h>
+#include <cmocka.h>
 
-#define BUFFERSIZE 10
+#define PNL_TEST_BUFFER_SIZE 4
 
-#define ASSERT_EQ(v1,v2) if(v1 != v2) exit(EXIT_FAILURE)
+void buffer_test(void **state) {
+    pnl_buffer_t buffer;
+    char data[PNL_TEST_BUFFER_SIZE]  = {1,2,3,4};
 
-int main(void){
+    pnl_buffer_init(&buffer);
+    assert_true(buffer.data == NULL);
+    assert_true(buffer.position == NULL);
+    assert_true(buffer.used == 0);
+    assert_true(buffer.size == 0);
 
-	pnl_buffer_t buf;
-	int rc;
+    pnl_buffer_set_data(&buffer,data, PNL_TEST_BUFFER_SIZE);
+    assert_true(buffer.data == data);
+    assert_true(buffer.position == data);
+    assert_true(buffer.used == 0);
+    assert_true(buffer.size == PNL_TEST_BUFFER_SIZE);
 
-	rc = pnl_buffer_alloc(&buf, BUFFERSIZE );
-	ASSERT_EQ(rc,PNL_OK);
+    /*
+     * Add some more test logic...
+     */
 
-	//test read and write operations
+}
 
-	pnl_buffer_free(&buf);
 
-    return EXIT_SUCCESS;
+int main(int argc, char *argv[]) {
+
+    const struct CMUnitTest tests[] = {cmocka_unit_test(buffer_test)};
+
+    return cmocka_run_group_tests(tests, NULL, NULL);
+
 }
 

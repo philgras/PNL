@@ -9,20 +9,16 @@
 #include <setjmp.h>
 #include <cmocka.h>
 
-void demo_test(void** state){
+void demo_test(void **state) {
 
 }
 
 
-int main(int argc, char* argv[]){
+int main(int argc, char *argv[]) {
 
-	const struct CMUnitTest tests [] = {
+    const struct CMUnitTest tests[] = { cmocka_unit_test(demo_test) };
 
-			cmocka_unit_test(demo_test)
-
-	};
-
-	return cmocka_run_group_tests(tests,NULL,NULL);
+    return cmocka_run_group_tests(tests,NULL,NULL);
 
 }
 
