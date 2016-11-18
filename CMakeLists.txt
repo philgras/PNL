@@ -22,9 +22,10 @@ if(NOT CMOCKA_LIBRARY)
             URL https://cmocka.org/files/1.1/cmocka-1.1.0.tar.xz
             SOURCE_DIR ${CMAKE_SOURCE_DIR}/lib/cmocka
             BUILD_COMMAND make
-            INSTALL_DIR ${CMAKE_BINARY_DIR}/install
+            INSTALL_DIR ${CMAKE_BINARY_DIR}/cmocka/install
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
 
+    include_directories(${CMAKE_BINARY_DIR}/cmocka/install/include)
     find_library(CMOCKA_LIBRARY NAMES cmocka)
 endif()
 
