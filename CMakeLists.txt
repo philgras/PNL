@@ -11,8 +11,22 @@ if(CMAKE_C_COMPILER_ID MATCHES GNU)
 	set(CMAKE_C_FLAGS_RELEASE "-O3")
 endif()
 
+#find threads
+find_package(Threads REQUIRED)
+
 #find and add the cmocka library
 find_library(CMOCKA_LIBRARY NAMES cmocka)
+if(NOT CMOCKA_LIBRARY)
+    ExternalProject_Add(cmocka_test
+            URL https://cmocka.org/files/1.1/cmocka-1.1.0.tar.xz
+            BUILD_IN_SOURCE 1
+            BUILD_COMMAND make
+            INSTALL_DIR ${CMAKE_BINARY_DIR}/install
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
+
+    find_library(CMOCKA_LIBRARY NAMES cmocka)
+endif()
+
 add_library(cmocka SHARED IMPORTED)
 set_property(TARGET cmocka PROPERTY IMPORTED_LOCATION "${CMOCKA_LIBRARY}")
 
@@ -36,6 +50,8 @@ add_library(pnl STATIC
         src/pnl_tcp.c
         src/pnl_system.c
         src/pnl_loop.c)
+
+target_link_libraries(pnl ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(pnl_demo_test test/unit/pnl_demo_test.c)
 add_executable(pnl_list_test test/unit/pnl_list_test.c)
