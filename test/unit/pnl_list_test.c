@@ -50,7 +50,7 @@ void test_insert_and_remove(void **state) {
 }
 
 void test_for_each(void **state) {
-    pnl_list_t number_list, *element;
+    pnl_list_t number_list;
     number_node_t nodes[NUMBER_LIST_LENGTH];
 
     pnl_list_init(&number_list);

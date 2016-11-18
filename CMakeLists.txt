@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6 FATAL_ERROR)
+cmake_minimum_required (VERSION 2.8 FATAL_ERROR)
 project (PNL C)
 
 set (PNL_VERSION_MAJOR 0)
@@ -16,16 +16,17 @@ find_package(Threads REQUIRED)
 
 #find and add the cmocka library
 find_library(CMOCKA_LIBRARY NAMES cmocka)
-if(NOT CMOCKA_LIBRARY)
+#if(NOT CMOCKA_LIBRARY)
+    include(ExternalProject)
     ExternalProject_Add(cmocka_test
             URL https://cmocka.org/files/1.1/cmocka-1.1.0.tar.xz
-            BUILD_IN_SOURCE 1
+            SOURCE_DIR ${CMAKE_SOURCE_DIR}/lib/cmocka
             BUILD_COMMAND make
             INSTALL_DIR ${CMAKE_BINARY_DIR}/install
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
 
     find_library(CMOCKA_LIBRARY NAMES cmocka)
-endif()
+#endif()
 
 add_library(cmocka SHARED IMPORTED)
 set_property(TARGET cmocka PROPERTY IMPORTED_LOCATION "${CMOCKA_LIBRARY}")
