@@ -15,6 +15,7 @@ addons:
     packages:
       - cmake
       - cmake-data
+      - curl
 
 
 script:
