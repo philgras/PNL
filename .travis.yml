@@ -8,6 +8,7 @@ compiler:
 os:
   - linux
 
+<<<<<<< Updated upstream
 addons:
   apt:
     sources:
@@ -16,6 +17,11 @@ addons:
       - cmake
       - cmake-data
       - curl
+=======
+sudo: required
+
+dist: trusty
+>>>>>>> Stashed changes
 
 
 script:
