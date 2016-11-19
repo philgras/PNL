@@ -16,9 +16,13 @@ find_package(Threads REQUIRED)
 
 #find and add the cmocka library
 find_library(CMOCKA_LIBRARY NAMES cmocka)
-if(NOT CMOCKA_LIBRARY)
+if(CMOCKA_LIBRARY)
+    add_library(cmocka SHARED IMPORTED)
+    set_property(TARGET cmocka PROPERTY IMPORTED_LOCATION "${CMOCKA_LIBRARY}")
+
+else()
     include(ExternalProject)
-    ExternalProject_Add(cmocka_test
+    ExternalProject_Add(cmocka_lib
             URL https://cmocka.org/files/1.1/cmocka-1.1.0.tar.xz
             SOURCE_DIR ${CMAKE_SOURCE_DIR}/lib/cmocka
             BUILD_COMMAND make
@@ -26,11 +30,9 @@ if(NOT CMOCKA_LIBRARY)
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
 
     include_directories(${CMAKE_BINARY_DIR}/cmocka/install/include)
-    find_library(CMOCKA_LIBRARY NAMES cmocka)
+    add_library(cmocka SHARED IMPORTED)
+    set_property(TARGET cmocka PROPERTY IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/cmocka/install/lib/libcmocka.so")
 endif()
-
-add_library(cmocka SHARED IMPORTED)
-set_property(TARGET cmocka PROPERTY IMPORTED_LOCATION "${CMOCKA_LIBRARY}")
 
 #include the source directories
 include_directories(${PROJECT_SOURCE_DIR}/src)

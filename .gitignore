@@ -4,3 +4,5 @@ bin/
 .cproject
 .settings/
 .project
+lib/
+.idea/
