@@ -26,6 +26,8 @@ typedef struct {
 
 } pnl_error_t;
 
+#define PNL_ERROR_INIT {.pnl_ec=PNL_NOERR, .system_ec=0}
+
 #define PNL_OK 0
 #define PNL_ERR -1
 
@@ -50,10 +52,11 @@ typedef struct {
     XX(ESETSOCKOPT, "Failed to set socket options"),                                            \
     XX(ERECV, "Failed to receive data from the socket descriptor"),                             \
     XX(ESEND, "Failed to send from the socket descriptor"),                                     \
-    XX(EINACTIVE, "The connection passed to the function is inactive"),                         \
-    XX(EALREADY, "The connection passed to the function is already reading/writing"),           \
+    XX(EINACTIVE, "The object passed to the function is inactive"),                             \
+    XX(EALREADY, "The object passed to the function is already reading/writing"),               \
     XX(ELISTEN, "Failed to listen to a socket file descriptor"),                                \
     XX(EEVENTWAIT, "Failed to wait for epoll events"),                                          \
+    XX(ENOTRUNING, "The event loop is not running"),                                            \
     XX(EWAIT,"Operation could not be finished and would block")
 
 enum pnl_error {

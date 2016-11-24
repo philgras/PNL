@@ -29,26 +29,30 @@ static inline void pnl_list_init(pnl_list_t *list) {
     list->prev = list;
 }
 
-static inline int pnl_list_is_empty(pnl_list_t *list) {
+static inline
+int pnl_list_is_empty(pnl_list_t *list) {
     return list->next == list;
 }
 
-static inline pnl_list_t *pnl_list_first(pnl_list_t *list) {
+static inline
+pnl_list_t *pnl_list_first(pnl_list_t *list) {
     return pnl_list_is_empty(list) ? NULL : list->next;
 }
 
-static inline void pnl_list_insert(pnl_list_t *list, pnl_list_t *node) {
-
+static inline
+void pnl_list_insert(pnl_list_t *list, pnl_list_t *node) {
     node->prev = list;
     node->next = list->next;
     list->next->prev = node;
     list->next = node;
-
 }
 
-static inline void pnl_list_remove(pnl_list_t *list) {
+static inline
+void pnl_list_remove(pnl_list_t *list) {
     list->next->prev = list->prev;
     list->prev->next = list->next;
+    list->next = list;
+    list->prev = list;
 }
 
 

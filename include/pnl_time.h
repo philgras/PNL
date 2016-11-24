@@ -9,7 +9,7 @@
 #define SRC_PNL_TIME_H_
 
 #define PNL_INFINITE_TIMEOUT 0
-#define PNL_DEFAULT_TIMEOUT PNL_INFINITE_TIMEOUT
+#define PNL_DEFAULT_TIMEOUT 50000
 
 
 typedef long pnl_time_t;
