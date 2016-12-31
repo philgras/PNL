@@ -13,7 +13,7 @@
 #include "pnl_list.h"
 
 #define PNL_START_DAEMON_THREAD 1
-#define PNL_START_NORMAL 0
+#define PNL_START_SINGLE_THREADED 0
 
 #define PNL_BASE_PTR(ptr) ((pnl_base_t*) (ptr))
 
@@ -99,7 +99,7 @@ void pnl_loop_stop(pnl_loop_t *loop);
  *
  * @param loop
  */
-void pnl_loop_wait_for_deamon(pnl_loop_t *loop);
+int pnl_loop_wait_for_daemon(pnl_loop_t *loop, pnl_error_t * error);
 
 /**
  *
@@ -147,7 +147,8 @@ int pnl_loop_add_server(pnl_loop_t *loop, pnl_server_t **server, const pnl_serve
  * @param error
  * @return
  */
-int pnl_loop_add_connection(pnl_loop_t *loop, pnl_connection_t **conn, const pnl_connection_config_t *config, pnl_error_t *error);
+int pnl_loop_add_connection(pnl_loop_t *loop, pnl_connection_t **conn, const pnl_connection_config_t *config,
+                            pnl_error_t *error);
 
 /**
  *
@@ -177,7 +178,8 @@ int pnl_loop_remove_server(pnl_loop_t *loop, pnl_server_t *server, pnl_error_t *
  * @param error
  * @return
  */
-int pnl_loop_read(pnl_loop_t *loop, pnl_connection_t *conn, on_read_cb on_read, char *buffer, size_t buffer_size, pnl_error_t *error);
+int pnl_loop_read(pnl_loop_t *loop, pnl_connection_t *conn, on_read_cb on_read, char *buffer, size_t buffer_size,
+                  pnl_error_t *error);
 
 /**
  *
@@ -189,7 +191,8 @@ int pnl_loop_read(pnl_loop_t *loop, pnl_connection_t *conn, on_read_cb on_read, 
  * @param error
  * @return
  */
-int pnl_loop_write(pnl_loop_t *loop, pnl_connection_t *conn, on_write_cb on_write, char *buffer, size_t buffer_size, pnl_error_t *error);
+int pnl_loop_write(pnl_loop_t *loop, pnl_connection_t *conn, on_write_cb on_write, char *buffer, size_t buffer_size,
+                   pnl_error_t *error);
 
 
 #endif /*PNL_LOOP_H*/

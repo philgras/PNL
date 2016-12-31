@@ -39,7 +39,6 @@ typedef int (*io_task_handler)(pnl_loop_t *, pnl_base_t *);
 
 /*internal structs - only the names are exposed to the API user*/
 
-
 /*
  * BASE
  */
@@ -111,6 +110,7 @@ struct pnl_loop_s {
     /*PRIVATE*/
     pnl_fd_t epollfd;
     pnl_base_t *wakeup_file;
+    pnl_error_t error;
 
     pnl_list_t io_task_files;
     pnl_list_t active_files;
@@ -163,7 +163,7 @@ static int handle_accept(pnl_loop_t *, pnl_base_t *);
 
 static void process_io_tasks(pnl_loop_t *l);
 
-static int add_wakeup_file(pnl_loop_t *loop);
+static int add_wakeup_file(pnl_loop_t *loop, pnl_error_t *error);
 
 static void wakeup_on_error(pnl_loop_t *l, pnl_base_t *b, pnl_error_t *error);
 
@@ -284,6 +284,7 @@ void pnl_loop_init(pnl_loop_t *l) {
     l->epollfd = PNL_INVALID_FD;
     l->deamon = 0;
     l->wakeup_file = NULL;
+    l->error = (pnl_error_t) PNL_ERROR_INIT;
     pnl_list_init(&l->active_files);
     pnl_list_init(&l->inactive_files);
     pnl_list_init(&l->io_task_files);
@@ -483,17 +484,15 @@ int pnl_loop_read(pnl_loop_t *l, pnl_connection_t *conn, on_read_cb on_read, cha
     } else if (conn->is_reading) {
         pnl_error_set(error, PNL_EALREADY, 0);
         rc = PNL_ERR;
-    } else if (!conn->base.inactive) {
-
+    } else if (conn->base.inactive) {
+        pnl_error_set(error, PNL_EINACTIVE, 0);
+        rc = PNL_ERR;
+    } else {
         pnl_buffer_set_input(&conn->rbuffer, buffer, buffer_size);
         conn->is_reading = 1;
         conn->read_cb = on_read;
         pnl_loop_add_io_task(l, PNL_BASE_PTR(conn), PNL_IO_TASK_READ);
         pnl_loop_wakeup(l);
-
-    } else {
-        pnl_error_set(error, PNL_EINACTIVE, 0);
-        rc = PNL_ERR;
     }
 
     UNLOCK_LOOP(l);
@@ -519,17 +518,15 @@ int pnl_loop_write(pnl_loop_t *l, pnl_connection_t *conn, on_write_cb on_write, 
     } else if (conn->is_writing) {
         pnl_error_set(error, PNL_EALREADY, 0);
         rc = PNL_ERR;
-    } else if (!conn->base.inactive) {
-
+    } else if (conn->base.inactive) {
+        pnl_error_set(error, PNL_EINACTIVE, 0);
+        rc = PNL_ERR;
+    } else {
         pnl_buffer_set_output(&conn->wbuffer, buffer, buffer_size);
         conn->is_writing = 1;
         conn->write_cb = on_write;
         pnl_loop_add_io_task(l, PNL_BASE_PTR(conn), PNL_IO_TASK_WRITE);
         pnl_loop_wakeup(l);
-
-    } else {
-        pnl_error_set(error, PNL_EINACTIVE, 0);
-        rc = PNL_ERR;
     }
 
     UNLOCK_LOOP(l);
@@ -550,9 +547,8 @@ int pnl_loop_start(pnl_loop_t *l, on_start onstart, int deamon, pnl_error_t *err
         return rc;
     }
 
-    rc = add_wakeup_file(l);
+    rc = add_wakeup_file(l, error);
     if (rc == PNL_ERR) {
-        *error = l->wakeup_file->error;
         pnl_close(l->epollfd);
         l->epollfd = PNL_INVALID_FD;
         return rc;
@@ -571,11 +567,18 @@ int pnl_loop_start(pnl_loop_t *l, on_start onstart, int deamon, pnl_error_t *err
         } else {
             rc = PNL_OK;
         }
+
     } else {
         l->running = 1;
-        if (onstart)
-            onstart(l);
+        if (onstart) onstart(l);
+
         main_routine(l);
+
+        if (pnl_error_is_error(&l->error)) {
+            rc = PNL_ERR;
+            *error = l->error;
+        }
+
     }
 
     return rc;
@@ -602,10 +605,19 @@ void pnl_loop_stop(pnl_loop_t *l) {
     UNLOCK_LOOP(l);
 }
 
-void pnl_loop_wait_for_deamon(pnl_loop_t *loop) {
+int pnl_loop_wait_for_daemon(pnl_loop_t *loop, pnl_error_t *error) {
+    int rc;
     if (loop->deamon) {
-        pthread_join(loop->deamon_thread, NULL);
+        void *ec = NULL;
+        pthread_join(loop->deamon_thread, &ec);
+        *error = *((pnl_error_t *) ec);
+        rc = pnl_error_is_error(error) ? PNL_ERR : PNL_OK;
+    } else {
+        rc = PNL_ERR;
+        pnl_error_set(error, PNL_ENODAEMON, 0);
     }
+
+    return rc;
 }
 
 void *pnl_loop_get_data(pnl_loop_t *l) {
@@ -654,7 +666,6 @@ static void *main_routine(void *loop) {
     int rc;
     pnl_base_t *base;
     pnl_event_t events[EVENT_BUFFER_SIZE];
-    pnl_error_t error = PNL_ERROR_INIT;
     pnl_loop_t *l = (pnl_loop_t *) loop;
 
     while (pnl_loop_atomic_is_running(l)) {
@@ -664,9 +675,8 @@ static void *main_routine(void *loop) {
 
         rc = epoll_wait(l->epollfd, events, EVENT_BUFFER_SIZE, (int) l->poll_timeout);
         if (rc < 0) {
-            pnl_error_set(&error, PNL_EEVENTWAIT, errno);
+            pnl_error_set(&l->error, PNL_EEVENTWAIT, errno);
             pnl_loop_stop(l);
-            rc = PNL_ERR;
         } else {
 
             /*set count*/
@@ -693,7 +703,7 @@ static void *main_routine(void *loop) {
     pnl_close(l->epollfd);
     l->epollfd = PNL_INVALID_FD;
 
-    return NULL;
+    return &l->error;
 }
 
 
@@ -1021,7 +1031,7 @@ static void process_io_tasks(pnl_loop_t *l) {
 
 }
 
-static int add_wakeup_file(pnl_loop_t *loop) {
+static int add_wakeup_file(pnl_loop_t *loop, pnl_error_t *error) {
 
     int rc;
     pnl_event_t event;
@@ -1029,7 +1039,7 @@ static int add_wakeup_file(pnl_loop_t *loop) {
 
     tf = loop->wakeup_file = pnl_malloc(sizeof(pnl_base_t));
     if (tf == NULL) {
-        pnl_error_set(&tf->error, PNL_EMALLOC, errno);
+        pnl_error_set(error, PNL_EMALLOC, errno);
         return PNL_ERR;
     }
 
@@ -1038,7 +1048,7 @@ static int add_wakeup_file(pnl_loop_t *loop) {
     if (tf->system_fd == PNL_INVALID_FD) {
         pnl_free(tf);
         loop->wakeup_file = NULL;
-        pnl_error_set(&tf->error, PNL_EWAKEUPFD, errno);
+        pnl_error_set(error, PNL_EWAKEUPFD, errno);
         return PNL_ERR;
     }
 
@@ -1054,7 +1064,7 @@ static int add_wakeup_file(pnl_loop_t *loop) {
     rc = epoll_ctl(loop->epollfd, EPOLL_CTL_ADD, tf->system_fd, &event);
 
     if (rc != 0) {
-        pnl_error_set(&tf->error, PNL_EEVENTADD, errno);
+        pnl_error_set(error, PNL_EEVENTADD, errno);
         pnl_tcp_close(&tf->system_fd, &tf->error);
         pnl_free(tf);
         loop->wakeup_file = NULL;

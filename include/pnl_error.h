@@ -61,6 +61,7 @@ typedef struct {
     XX(ETHREAD, "Failed to create the deamon thread"),                                          \
     XX(ESTARTCB, "Error during user-defined start function"),                                   \
     XX(ENOTCONNECTED, "Failed because a connection has not been established yet"),              \
+    XX(ENODAEMON, "Cannot wait for daemon because PNL was started as single thread"),           \
     XX(EWAIT,"Operation could not be finished and would block")
 
 enum pnl_error {

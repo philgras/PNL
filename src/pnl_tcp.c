@@ -123,9 +123,9 @@ int pnl_tcp_connect_succeeded(pnl_fd_t *conn_fd, pnl_error_t *error) {
 
     } else if (connected != 0) {
 
-        if (connected == EINPROGRESS)  {
+        if (connected == EINPROGRESS) {
             pnl_error_set(error, PNL_EWAIT, connected);
-        }else{
+        } else {
             pnl_error_set(error, PNL_ECONNECT, connected);
         }
 

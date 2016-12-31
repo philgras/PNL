@@ -230,7 +230,6 @@ int connect_callback(pnl_loop_t *l, pnl_connection_t *connection) {
 void error_cb(pnl_loop_t *loop, pnl_base_t *base, pnl_error_t *error) {
 
     pnl_print_error(error);
-    conn_data_t *cd = pnl_base_get_data(base);
 
 }
 
@@ -268,7 +267,7 @@ void echo_test(void **state) {
         pnl_print_error(&error);
     } else {
         start(loop);
-        pnl_loop_wait_for_deamon(loop);
+        rc = pnl_loop_wait_for_daemon(loop,&error);
     }
 
     end_time = pnl_get_system_time();

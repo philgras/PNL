@@ -14,6 +14,19 @@ endif()
 #find threads
 find_package(Threads REQUIRED)
 
+#check if epoll and eventfd exist
+include(CheckIncludeFiles)
+check_include_files (sys/eventfd.h PNL_HAVE_EVENTFD)
+check_include_files (sys/epoll.h PNL_HAVE_EPOLL)
+
+if (NOT PNL_HAVE_EVENTFD)
+    message (FATAL_ERROR "Required header sys/eventfd.h not found")
+endif()
+
+if (NOT PNL_HAVE_EPOLL)
+    message (FATAL_ERROR "Required header sys/epoll.h not found")
+endif()
+
 #find and add the cmocka library
 find_library(CMOCKA_LIBRARY NAMES cmocka)
 if(CMOCKA_LIBRARY)
