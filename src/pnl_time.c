@@ -14,7 +14,7 @@
 #define NANO_TO_MILLI(nano) ((nano)/1000000)
 #define SEC_TO_MILLI(sec) ((sec)*1000)
 
-pnl_time_t pnl_get_system_time() {
+pnl_time_t pnl_get_system_time(void) {
     struct timespec time;
     int rc = clock_gettime(CLOCK_MONOTONIC, &time);
     if (rc != 0) {

@@ -26,6 +26,8 @@ typedef struct {
 
 } pnl_error_t;
 
+#define PNL_ERROR_INIT {.pnl_ec=PNL_NOERR, .system_ec=0}
+
 #define PNL_OK 0
 #define PNL_ERR -1
 
@@ -50,10 +52,16 @@ typedef struct {
     XX(ESETSOCKOPT, "Failed to set socket options"),                                            \
     XX(ERECV, "Failed to receive data from the socket descriptor"),                             \
     XX(ESEND, "Failed to send from the socket descriptor"),                                     \
-    XX(EINACTIVE, "The connection passed to the function is inactive"),                         \
-    XX(EALREADY, "The connection passed to the function is already reading/writing"),           \
+    XX(EINACTIVE, "The object passed to the function is inactive"),                             \
+    XX(EALREADY, "The object passed to the function is already reading/writing"),               \
     XX(ELISTEN, "Failed to listen to a socket file descriptor"),                                \
     XX(EEVENTWAIT, "Failed to wait for epoll events"),                                          \
+    XX(ENOTRUNNING, "The event loop is not running"),                                           \
+    XX(EWAKEUPFD, "Failed to create the wake up file descriptor via eventfd()"),                \
+    XX(ETHREAD, "Failed to create the deamon thread"),                                          \
+    XX(ESTARTCB, "Error during user-defined start function"),                                   \
+    XX(ENOTCONNECTED, "Failed because a connection has not been established yet"),              \
+    XX(ENODAEMON, "Cannot wait for daemon because PNL was started as single thread"),           \
     XX(EWAIT,"Operation could not be finished and would block")
 
 enum pnl_error {
@@ -64,9 +72,14 @@ enum pnl_error {
 
 };
 
-const char *pnl_strerror(int ec);
+const char *pnl_str_pnl_error(const pnl_error_t* error);
 
-const char *pnl_strrerrorcode(int ec);
+const char* pnl_str_system_error(const pnl_error_t* error);
+
+static inline
+int pnl_error_is_error(const pnl_error_t* error){
+    return error->pnl_ec != PNL_NOERR;
+}
 
 static inline
 void pnl_error_set(pnl_error_t *error, int pnl_error, int system_error) {

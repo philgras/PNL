@@ -22,14 +22,14 @@
     static int enable_nonblocking(pnl_tcp_t* tcp_handle){
 	int flags;
 
-	flags = fcntl(tcp_handle->socket_fd, F_GETFL, 0);
+	flags = fcntl(tcp_handle->system_fd, F_GETFL, 0);
 	if (flags == -1) {
 		PNL_TCP_ERROR(tcp_handle,PNL_ENONBLOCK,errno);
 		return PNL_ERR;
 	}
 
 	flags |= O_NONBLOCK;
-	if (fcntl(tcp_handle->socket_fd, F_SETFL, flags) == -1) {
+	if (fcntl(tcp_handle->system_fd, F_SETFL, flags) == -1) {
 		PNL_TCP_ERROR(tcp_handle,PNL_ENONBLOCK,errno);
 		return PNL_ERR;
 	}
@@ -123,9 +123,9 @@ int pnl_tcp_connect_succeeded(pnl_fd_t *conn_fd, pnl_error_t *error) {
 
     } else if (connected != 0) {
 
-        if (connected == EINPROGRESS)  {
+        if (connected == EINPROGRESS) {
             pnl_error_set(error, PNL_EWAIT, connected);
-        }else{
+        } else {
             pnl_error_set(error, PNL_ECONNECT, connected);
         }
 
