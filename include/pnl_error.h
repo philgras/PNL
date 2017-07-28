@@ -62,6 +62,7 @@ typedef struct {
     XX(ESTARTCB, "Error during user-defined start function"),                                   \
     XX(ENOTCONNECTED, "Failed because a connection has not been established yet"),              \
     XX(ENODAEMON, "Cannot wait for daemon because PNL was started as single thread"),           \
+    XX(EINVALIDBUF, "Either the pointer to the buffer is null or the buffer size is 0"),        \
     XX(EWAIT,"Operation could not be finished and would block")
 
 enum pnl_error {

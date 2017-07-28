@@ -74,7 +74,7 @@ add_library(pnl STATIC
         src/pnl_system.c
         src/pnl_loop.c)
 
-target_link_libraries(pnl ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(pnl pthread)
 
 add_executable(pnl_demo_test test/unit/pnl_demo_test.c)
 add_executable(pnl_list_test test/unit/pnl_list_test.c)

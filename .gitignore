@@ -6,3 +6,4 @@ bin/
 .project
 lib/
 .idea/
+cmake-build-debug/

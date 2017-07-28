@@ -487,6 +487,9 @@ int pnl_loop_read(pnl_loop_t *l, pnl_connection_t *conn, on_read_cb on_read, cha
     } else if (conn->base.inactive) {
         pnl_error_set(error, PNL_EINACTIVE, 0);
         rc = PNL_ERR;
+    } else if (!buffer || buffer_size == 0){
+        pnl_error_set(error, PNL_EINVALIDBUF, 0);
+        rc = PNL_ERR;
     } else {
         pnl_buffer_set_input(&conn->rbuffer, buffer, buffer_size);
         conn->is_reading = 1;
@@ -520,6 +523,9 @@ int pnl_loop_write(pnl_loop_t *l, pnl_connection_t *conn, on_write_cb on_write, 
         rc = PNL_ERR;
     } else if (conn->base.inactive) {
         pnl_error_set(error, PNL_EINACTIVE, 0);
+        rc = PNL_ERR;
+    } else if (!buffer || buffer_size == 0){
+        pnl_error_set(error, PNL_EINVALIDBUF, 0);
         rc = PNL_ERR;
     } else {
         pnl_buffer_set_output(&conn->wbuffer, buffer, buffer_size);

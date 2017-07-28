@@ -24,7 +24,7 @@ void buffer_test(void **state) {
     assert_true(buffer.size == PNL_TEST_BUFFER_SIZE);
 
     /*
-     * Add some more test logic...
+     * Add more test logic...
      */
 
 }
