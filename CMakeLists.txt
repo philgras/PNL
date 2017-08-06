@@ -6,7 +6,7 @@ set(PNL_VERSION_MINOR 1)
 
 #compiler settings
 if (CMAKE_C_COMPILER_ID MATCHES GNU)
-    set(CMAKE_C_FLAGS "-Wall -Wfatal-errors -pedantic -fstrict-aliasing -std=c99 -D_POSIX_SOURCE -D_GNU_SOURCE")
+    set(CMAKE_C_FLAGS "-Wall -Wfatal-errors -pedantic -fstrict-aliasing -std=c11 -D_POSIX_SOURCE -D_GNU_SOURCE")
     set(CMAKE_C_FLAGS_DEBUG "-O3 -g3")
     set(CMAKE_C_FLAGS_RELEASE "-O3")
 endif ()
@@ -65,6 +65,7 @@ add_library(pnl_base src/pnl_error.c src/pnl_time.c)
 add_library(pnl_tcp src/pnl_tcp.c)
 add_library(pnl_sys src/pnl_system.c)
 add_library(pnl_loop src/pnl_loop.c)
+add_library(pnl_thread_pool src/pnl_thread_pool.c)
 
 #finally the library
 add_library(pnl STATIC
@@ -88,6 +89,13 @@ target_link_libraries(pnl_list_test cmocka)
 #target_link_libraries(pnl_buffer_test cmocka)
 target_link_libraries(pnl_tcp_test pnl_tcp cmocka)
 target_link_libraries(pnl_echo_test pnl cmocka)
+
+
+##
+add_executable(run_pool test/unit/run_pool.c)
+target_link_libraries(run_pool pnl_thread_pool pthread)
+##
+
 
 add_test(NAME pnl_demo_test COMMAND pnl_demo_test)
 add_test(NAME pnl_list_test COMMAND pnl_list_test)
