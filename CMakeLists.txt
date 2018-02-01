@@ -6,8 +6,8 @@ set(PNL_VERSION_MINOR 1)
 
 #compiler settings
 if (CMAKE_C_COMPILER_ID MATCHES GNU)
-    set(CMAKE_C_FLAGS "-Wall -Wfatal-errors -pedantic -fstrict-aliasing -std=c99 -D_POSIX_SOURCE -D_GNU_SOURCE")
-    set(CMAKE_C_FLAGS_DEBUG "-O3 -g3")
+    set(CMAKE_C_FLAGS "-Wall -Wfatal-errors -pedantic -Wstrict-aliasing=2 -std=c99 -D_POSIX_SOURCE -D_GNU_SOURCE")
+    set(CMAKE_C_FLAGS_DEBUG "-g3")
     set(CMAKE_C_FLAGS_RELEASE "-O3")
 endif ()
 
